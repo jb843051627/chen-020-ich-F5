@@ -104,21 +104,90 @@ CREATE TABLE IF NOT EXISTS t_ich_image_card (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='技艺影像卷立卷单';
 
+-- 名录项目申报单：四格流转（形式核验/专家评议/社会公示/列入名录）。
+-- 2026-10-03 起：格次不由格子里的数说了算，由服务层那一个推进方法顺着已过之格回算
+-- （stage 只作页面参考列，权威数以 t_ich_item_flow_record 逐格留痕点出）；
+-- 收口有三说：列入/注销/终止，收口即锁档，卷面改不动、整张删不掉。
+-- 一份申报（declare_no）底下只容一张在跑的单，头一张没办完也没喊停，后一张立不住。
+-- 每格的门槛材料齐不齐、公示日子走没走完，一律钉在留痕表的那一格里。
 CREATE TABLE IF NOT EXISTS t_ich_item_flow (
   id bigint NOT NULL COMMENT '主键',
-  biz_no varchar(64) DEFAULT NULL COMMENT '名录项目申报单',
-  stage int DEFAULT NULL COMMENT '当前格次 0..3（核验/评议/公示/列入）',
+  biz_no varchar(64) DEFAULT NULL COMMENT '名录项目申报单号',
+  declare_no varchar(64) DEFAULT NULL COMMENT '同一份申报的归口号（一号只容一张在跑的单）',
+  stage int DEFAULT NULL COMMENT '当前格次参考列 0..3（核验/评议/公示/列入；权威数以留痕回算为准）',
   status int DEFAULT NULL COMMENT '申领会落 0未起 1在办 2已收口',
-  content varchar(255) DEFAULT NULL COMMENT '一格一记',
+  close_outcome int DEFAULT NULL COMMENT '收口说法 1列入 2注销 3终止；未收口空着',
+  item_name varchar(255) DEFAULT NULL COMMENT '项目名称（形式核验四样之一）',
+  category varchar(32) DEFAULT NULL COMMENT '门类（民间文学/传统技艺/传统医药/传统音乐）',
+  apply_area varchar(255) DEFAULT NULL COMMENT '申报地（形式核验四样之一）',
+  protect_unit varchar(255) DEFAULT NULL COMMENT '保护单位（形式核验四样之一）',
+  public_days int DEFAULT NULL COMMENT '当地定的公示几日（公示格的门槛）',
+  public_start datetime DEFAULT NULL COMMENT '公示起笔那一刻（日子没走完材料再齐也不算）',
+  expert_ok int DEFAULT NULL COMMENT '专家意见收没收齐 0没收齐 1收齐',
+  meeting_ok int DEFAULT NULL COMMENT '名录会议认不认 0不认 1认',
+  current_version int DEFAULT '1' COMMENT '当下版次 1头一版起 变更另起一版',
+  listed_flag int DEFAULT '0' COMMENT '现行名录上露不露这版 0不露(旧版/未列入) 1露(最新列入版)',
+  entry_code varchar(64) DEFAULT NULL COMMENT '列入校验码（一旦列入即钉死，任谁都覆写不了；改版重算）',
+  project_id bigint DEFAULT NULL COMMENT '列入后所落名录底册项目 t_ich_project.id',
+  cancel_reason varchar(500) DEFAULT NULL COMMENT '列入之后又注销的缘由（卷面留档，年末凭它追为何注销）',
+  cancel_time datetime DEFAULT NULL COMMENT '列入之后注销那一刻（列入事实与校验码不抹）',
+  content varchar(255) DEFAULT NULL COMMENT '一格一记（同格第二遍不另起一行，留头一遍那句）',
   last_action varchar(64) DEFAULT NULL COMMENT '最近一次过口动作',
+  del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除（收口锁档后删不掉）',
+  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
+  create_time datetime DEFAULT NULL COMMENT '创建时间',
+  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
+  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  remark varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (id),
+  KEY idx_item_flow_declare (declare_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='名录项目申报单';
+
+-- 一格一记：每格头一回上报写一笔；同格第二次上报不另起一行，仍留头一遍那句。
+-- 后退一格把该格先前所记压到下面（pressed=1），重走从这格再从头攒（另起一笔）。
+-- 已过之格全顺着这张表点出：单据停在第几格、后一格收不收，只由服务层推进方法据它回话。
+CREATE TABLE IF NOT EXISTS t_ich_item_flow_record (
+  id bigint NOT NULL COMMENT '主键',
+  bill_id bigint NOT NULL COMMENT '所属申报单 t_ich_item_flow.id',
+  stage int NOT NULL COMMENT '落在哪一格 0核验 1评议 2公示 3列入',
+  round_no int NOT NULL COMMENT '重走轮次 0头一回起 每退回该格再走加一',
+  record_text varchar(255) DEFAULT NULL COMMENT '头一遍上报那句（第二遍不另起一行）',
+  pass_flag int DEFAULT '0' COMMENT '0卷面在报 1已过口（点已过之格只点已过口的现行笔）',
+  pressed int DEFAULT '0' COMMENT '是否被后退压到下面 0现行 1已压下',
+  materials varchar(1000) DEFAULT NULL COMMENT '本格门槛材料齐否的逐条钉档（JSON）',
+  enter_time datetime DEFAULT NULL COMMENT '这一笔落格时刻',
   del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
   create_by varchar(64) DEFAULT NULL COMMENT '创建者',
   create_time datetime DEFAULT NULL COMMENT '创建时间',
   update_by varchar(64) DEFAULT NULL COMMENT '更新者',
   update_time datetime DEFAULT NULL COMMENT '更新时间',
   remark varchar(500) DEFAULT NULL COMMENT '备注',
-  PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='名录项目申报单';
+  PRIMARY KEY (id),
+  KEY idx_item_flow_record_bill (bill_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='名录项目申报单逐格留痕';
+
+-- 列入之外的变更另起一版：保护单位换了、名称正了字，旧版从现行名录挪开转到往期那一层，
+-- 名录上只露最新那一版。每版各算各的校验码，两版显出同一个码便是错的。
+CREATE TABLE IF NOT EXISTS t_ich_item_flow_version (
+  id bigint NOT NULL COMMENT '主键',
+  bill_id bigint NOT NULL COMMENT '所属申报单 t_ich_item_flow.id',
+  version_no int NOT NULL COMMENT '版次 1头一版起 每变更一次加一',
+  item_name varchar(255) DEFAULT NULL COMMENT '这一版记下的项目名称',
+  category varchar(32) DEFAULT NULL COMMENT '这一版记下的门类',
+  apply_area varchar(255) DEFAULT NULL COMMENT '这一版记下的申报地',
+  protect_unit varchar(255) DEFAULT NULL COMMENT '这一版记下的保护单位',
+  entry_code varchar(64) DEFAULT NULL COMMENT '这一版列入那一刻钉死的校验码（新版重算，新旧不重码）',
+  current_flag int DEFAULT '0' COMMENT '是否现行名录上露的那一版 0往期 1现行',
+  listed_time datetime DEFAULT NULL COMMENT '这一版列入（或变更落版）那一刻',
+  del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
+  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
+  create_time datetime DEFAULT NULL COMMENT '创建时间',
+  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
+  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  remark varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (id),
+  KEY idx_item_flow_version_bill (bill_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='名录项目申报单变更版次';
 
 CREATE TABLE IF NOT EXISTS t_ich_pre_line (
   id bigint NOT NULL COMMENT '主键',

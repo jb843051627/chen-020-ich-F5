@@ -31,14 +31,19 @@ public class TIchItemFlow implements Serializable {
     @ApiModelProperty(value = "主键")
     private Long id;
 
-    /** 名录项目申报单 */
+    /** 名录项目申报单号 */
     @TableField("biz_no")
-    @ApiModelProperty(value = "名录项目申报单")
+    @ApiModelProperty(value = "名录项目申报单号")
     private String bizNo;
 
-    /** 当前格次 0..3（核验/评议/公示/列入） */
+    /** 同一份申报的归口号（一号只容一张在跑的单） */
+    @TableField("declare_no")
+    @ApiModelProperty(value = "同一份申报的归口号（一号只容一张在跑的单）")
+    private String declareNo;
+
+    /** 当前格次参考列 0..3（核验/评议/公示/列入；权威数以留痕回算为准） */
     @TableField("stage")
-    @ApiModelProperty(value = "当前格次 0..3（核验/评议/公示/列入）")
+    @ApiModelProperty(value = "当前格次参考列 0..3（核验/评议/公示/列入；权威数以留痕回算为准）")
     private Integer stage;
 
     /** 申领会落 0未起 1在办 2已收口 */
@@ -46,9 +51,87 @@ public class TIchItemFlow implements Serializable {
     @ApiModelProperty(value = "申领会落 0未起 1在办 2已收口")
     private Integer status;
 
-    /** 一格一记 */
+    /** 收口说法 1列入 2注销 3终止；未收口空着 */
+    @TableField("close_outcome")
+    @ApiModelProperty(value = "收口说法 1列入 2注销 3终止；未收口空着")
+    private Integer closeOutcome;
+
+    /** 项目名称（形式核验四样之一） */
+    @TableField("item_name")
+    @ApiModelProperty(value = "项目名称（形式核验四样之一）")
+    private String itemName;
+
+    /** 门类（民间文学/传统技艺/传统医药/传统音乐） */
+    @TableField("category")
+    @ApiModelProperty(value = "门类（民间文学/传统技艺/传统医药/传统音乐）")
+    private String category;
+
+    /** 申报地（形式核验四样之一） */
+    @TableField("apply_area")
+    @ApiModelProperty(value = "申报地（形式核验四样之一）")
+    private String applyArea;
+
+    /** 保护单位（形式核验四样之一） */
+    @TableField("protect_unit")
+    @ApiModelProperty(value = "保护单位（形式核验四样之一）")
+    private String protectUnit;
+
+    /** 当地定的公示几日（公示格的门槛） */
+    @TableField("public_days")
+    @ApiModelProperty(value = "当地定的公示几日（公示格的门槛）")
+    private Integer publicDays;
+
+    /** 公示起笔那一刻（日子没走完材料再齐也不算） */
+    @TableField("public_start")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @ApiModelProperty(value = "公示起笔那一刻")
+    private Date publicStart;
+
+    /** 专家意见收没收齐 0没收齐 1收齐 */
+    @TableField("expert_ok")
+    @ApiModelProperty(value = "专家意见收没收齐 0没收齐 1收齐")
+    private Integer expertOk;
+
+    /** 名录会议认不认 0不认 1认 */
+    @TableField("meeting_ok")
+    @ApiModelProperty(value = "名录会议认不认 0不认 1认")
+    private Integer meetingOk;
+
+    /** 当下版次 1头一版起 变更另起一版 */
+    @TableField("current_version")
+    @ApiModelProperty(value = "当下版次 1头一版起 变更另起一版")
+    private Integer currentVersion;
+
+    /** 现行名录上露不露这版 0不露(旧版/未列入) 1露(最新列入版) */
+    @TableField("listed_flag")
+    @ApiModelProperty(value = "现行名录上露不露这版 0不露(旧版/未列入) 1露(最新列入版)")
+    private Integer listedFlag;
+
+    /** 列入校验码（一旦列入即钉死，任谁都覆写不了；改版重算） */
+    @TableField("entry_code")
+    @ApiModelProperty(value = "列入校验码（一旦列入即钉死，任谁都覆写不了；改版重算）")
+    private String entryCode;
+
+    /** 列入后所落名录底册项目 t_ich_project.id */
+    @TableField("project_id")
+    @JsonSerialize(using = ToStringSerializer.class)
+    @ApiModelProperty(value = "列入后所落名录底册项目")
+    private Long projectId;
+
+    /** 列入之后又注销的缘由（卷面留档，年末凭它追为何注销） */
+    @TableField("cancel_reason")
+    @ApiModelProperty(value = "列入之后又注销的缘由")
+    private String cancelReason;
+
+    /** 列入之后注销那一刻（列入事实与校验码不抹） */
+    @TableField("cancel_time")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    @ApiModelProperty(value = "列入之后注销那一刻")
+    private Date cancelTime;
+
+    /** 一格一记（同格第二遍不另起一行，留头一遍那句） */
     @TableField("content")
-    @ApiModelProperty(value = "一格一记")
+    @ApiModelProperty(value = "一格一记（同格第二遍不另起一行，留头一遍那句）")
     private String content;
 
     /** 最近一次过口动作 */
@@ -102,6 +185,134 @@ public class TIchItemFlow implements Serializable {
 
     public void setBizNo(String bizNo) {
         this.bizNo = bizNo;
+    }
+
+    public String getDeclareNo() {
+        return declareNo;
+    }
+
+    public void setDeclareNo(String declareNo) {
+        this.declareNo = declareNo;
+    }
+
+    public Integer getCloseOutcome() {
+        return closeOutcome;
+    }
+
+    public void setCloseOutcome(Integer closeOutcome) {
+        this.closeOutcome = closeOutcome;
+    }
+
+    public String getItemName() {
+        return itemName;
+    }
+
+    public void setItemName(String itemName) {
+        this.itemName = itemName;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public String getApplyArea() {
+        return applyArea;
+    }
+
+    public void setApplyArea(String applyArea) {
+        this.applyArea = applyArea;
+    }
+
+    public String getProtectUnit() {
+        return protectUnit;
+    }
+
+    public void setProtectUnit(String protectUnit) {
+        this.protectUnit = protectUnit;
+    }
+
+    public Integer getPublicDays() {
+        return publicDays;
+    }
+
+    public void setPublicDays(Integer publicDays) {
+        this.publicDays = publicDays;
+    }
+
+    public Date getPublicStart() {
+        return publicStart;
+    }
+
+    public void setPublicStart(Date publicStart) {
+        this.publicStart = publicStart;
+    }
+
+    public Integer getExpertOk() {
+        return expertOk;
+    }
+
+    public void setExpertOk(Integer expertOk) {
+        this.expertOk = expertOk;
+    }
+
+    public Integer getMeetingOk() {
+        return meetingOk;
+    }
+
+    public void setMeetingOk(Integer meetingOk) {
+        this.meetingOk = meetingOk;
+    }
+
+    public Integer getCurrentVersion() {
+        return currentVersion;
+    }
+
+    public void setCurrentVersion(Integer currentVersion) {
+        this.currentVersion = currentVersion;
+    }
+
+    public Integer getListedFlag() {
+        return listedFlag;
+    }
+
+    public void setListedFlag(Integer listedFlag) {
+        this.listedFlag = listedFlag;
+    }
+
+    public String getEntryCode() {
+        return entryCode;
+    }
+
+    public void setEntryCode(String entryCode) {
+        this.entryCode = entryCode;
+    }
+
+    public Long getProjectId() {
+        return projectId;
+    }
+
+    public void setProjectId(Long projectId) {
+        this.projectId = projectId;
+    }
+
+    public String getCancelReason() {
+        return cancelReason;
+    }
+
+    public void setCancelReason(String cancelReason) {
+        this.cancelReason = cancelReason;
+    }
+
+    public Date getCancelTime() {
+        return cancelTime;
+    }
+
+    public void setCancelTime(Date cancelTime) {
+        this.cancelTime = cancelTime;
     }
 
     public Integer getStage() {
