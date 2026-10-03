@@ -104,12 +104,37 @@ CREATE TABLE IF NOT EXISTS t_ich_image_card (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='技艺影像卷立卷单';
 
+-- 名录项目申报单：四格（形式核验/专家评议/社会公示/列入名录）+ 注销/终止收口。
+-- 2026-10-03 起：
+-- 1) 格次只有服务层那一个推进口能挪，stage/status/content 各栏只当页面参考，
+--    权威格次顺着 t_ich_item_flow_record 已过之格点出（纸面上的、接口递来的格号只算意向）。
+-- 2) 一份申报（declare_no）只容一张在跑的单；列入之外的变更（换保护单位、正名称）另起一版：
+--    version_no 加一、旧版 current_flag=0 转往期、现行名录只露最新版（current_flag=1）。
+-- 3) 校验码 check_code 列入那一刻算定，此后谁也覆写不了；改出一版重算一码，同申报两版同码即错。
+-- 4) 收口（列入/注销/终止）当场锁档：卷面上的字改不动、整张删不掉，留到年末追凭据。
 CREATE TABLE IF NOT EXISTS t_ich_item_flow (
   id bigint NOT NULL COMMENT '主键',
-  biz_no varchar(64) DEFAULT NULL COMMENT '名录项目申报单',
-  stage int DEFAULT NULL COMMENT '当前格次 0..3（核验/评议/公示/列入）',
+  biz_no varchar(64) DEFAULT NULL COMMENT '名录项目申报单号（本版）',
+  declare_no varchar(64) DEFAULT NULL COMMENT '申报归口号（同一份申报各版共用）',
+  version_no int DEFAULT '0' COMMENT '版次 0头一版 每变更另起一版加一',
+  current_flag int DEFAULT '1' COMMENT '现行否 0往期 1现行（现行名录只露1）',
+  round_no int DEFAULT '0' COMMENT '重走轮次 0头一回 每后退一格加一',
+  stage int DEFAULT NULL COMMENT '当前格次（仅页面参考）0形式核验 1专家评议 2社会公示 3列入名录；权威格次顺着留痕回算',
   status int DEFAULT NULL COMMENT '申领会落 0未起 1在办 2已收口',
-  content varchar(255) DEFAULT NULL COMMENT '一格一记',
+  item_name varchar(128) DEFAULT NULL COMMENT '形式要件·项目名称',
+  site_type varchar(32) DEFAULT NULL COMMENT '形式要件·门类（民间文学/传统技艺/传统医药/传统音乐）',
+  apply_area varchar(128) DEFAULT NULL COMMENT '形式要件·申报地',
+  protect_unit varchar(128) DEFAULT NULL COMMENT '形式要件·保护单位',
+  experts_received int DEFAULT NULL COMMENT '专家意见收齐否 0未齐 1已齐',
+  public_days int DEFAULT NULL COMMENT '当地定的公示几日',
+  public_start datetime DEFAULT NULL COMMENT '公示起算时刻（进社会公示格落笔；后退重走则清空重算）',
+  meeting_recognized int DEFAULT NULL COMMENT '名录会议认不认 0不认 1认',
+  close_type int DEFAULT '0' COMMENT '收口说法 0未收口 1列入 2注销 3终止',
+  check_code varchar(128) DEFAULT NULL COMMENT '校验码：列入一刻算定，此后只可读不可覆写；新版另算',
+  listed_time datetime DEFAULT NULL COMMENT '列入时刻（与校验码一同钉下）',
+  site_no varchar(64) DEFAULT NULL COMMENT '列入后所拴名录项目代号 t_ich_project.site_no',
+  prev_version_id bigint DEFAULT NULL COMMENT '上一版申报单id（头版为空）',
+  content varchar(255) DEFAULT NULL COMMENT '卷面参考字（权威卷面以留痕头一遍那句为准）',
   last_action varchar(64) DEFAULT NULL COMMENT '最近一次过口动作',
   del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
   create_by varchar(64) DEFAULT NULL COMMENT '创建者',
@@ -117,8 +142,32 @@ CREATE TABLE IF NOT EXISTS t_ich_item_flow (
   update_by varchar(64) DEFAULT NULL COMMENT '更新者',
   update_time datetime DEFAULT NULL COMMENT '更新时间',
   remark varchar(500) DEFAULT NULL COMMENT '备注',
-  PRIMARY KEY (id)
+  PRIMARY KEY (id),
+  KEY idx_item_flow_declare (declare_no),
+  KEY idx_item_flow_site (site_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='名录项目申报单';
+
+-- 卷面一格一记，只追加不改写：
+-- ADVANCE 为入格卷面那一行，同一格第二遍上报不另起一行、卷面仍留头一遍那句（服务层挡，不插第二笔）；
+-- BACK/CLOSE 压到下面作往期留痕，后退后重走到哪格、过了几格，全顺这张表点出，不靠格子里敲的数。
+CREATE TABLE IF NOT EXISTS t_ich_item_flow_record (
+  id bigint NOT NULL COMMENT '主键',
+  flow_id bigint NOT NULL COMMENT '所属申报单（本版） t_ich_item_flow.id',
+  stage int NOT NULL COMMENT '这一笔落在/退到哪一格 0..3',
+  round_no int NOT NULL COMMENT '落笔时的重走轮次',
+  action varchar(16) NOT NULL COMMENT '动作 ADVANCE前进入格 BACK后退一格 CLOSE收口（注销/终止/列入留痕）',
+  note varchar(500) DEFAULT NULL COMMENT '这一笔的卷面记要（入格行只留头一遍那句）',
+  action_time datetime DEFAULT NULL COMMENT '落笔时刻',
+  del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
+  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
+  create_time datetime DEFAULT NULL COMMENT '创建时间',
+  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
+  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  remark varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_item_flow_record_enter (flow_id, stage, round_no, action),
+  KEY idx_item_flow_record_flow (flow_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='名录项目申报单卷面留痕';
 
 CREATE TABLE IF NOT EXISTS t_ich_pre_line (
   id bigint NOT NULL COMMENT '主键',
